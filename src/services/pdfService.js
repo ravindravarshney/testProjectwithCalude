@@ -1,8 +1,8 @@
 import * as pdfjsLib from 'pdfjs-dist'
+import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 
-// Use CDN worker — keeps bundle small and avoids Vite worker issues
-pdfjsLib.GlobalWorkerOptions.workerSrc =
-  `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.5.207/pdf.worker.min.mjs`
+// Use local worker bundled with the app — no CDN dependency
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker
 
 const PALETTE = [
   ['#ff6b6b', '#feca57'], ['#48dbfb', '#ff9ff3'],
