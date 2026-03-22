@@ -62,7 +62,9 @@ export async function extractFactsFromPDF(file, onProgress) {
   return { facts, title }
 }
 
-// ── Text → Facts ──────────────────────────────────────────────────────────────
+// ── Text → Facts (also exported for image OCR) ───────────────────────────────
+
+export function extractFactsFromText(text) { return textToFacts(text) }
 
 function textToFacts(text) {
   // Clean up common PDF artifacts

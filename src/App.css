@@ -1219,3 +1219,163 @@ body {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0; }
 }
+
+/* ════════════════════════════════════════
+   INTERACTIVE Q&A ADDITIONS
+════════════════════════════════════════ */
+
+/* ── Format badge ── */
+.creel-format-badge {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.78rem;
+  font-weight: 800;
+  padding: 4px 14px;
+  border-radius: 99px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  z-index: 12;
+  backdrop-filter: blur(6px);
+}
+.creel-format-badge--quiz        { background: rgba(168,85,247,0.35); color: #e9d5ff; }
+.creel-format-badge--true-false  { background: rgba(233,69,96,0.35);  color: #fecdd3; }
+.creel-format-badge--imagine     { background: rgba(74,222,128,0.3);  color: #bbf7d0; }
+.creel-format-badge--challenge   { background: rgba(251,191,36,0.35); color: #fef9c3; }
+.creel-format-badge--story       { background: rgba(56,189,248,0.35); color: #bae6fd; }
+
+/* ── TRUE / FALSE overlay ── */
+.tf-overlay {
+  position: absolute;
+  bottom: 130px;
+  left: 0; right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  z-index: 20;
+  animation: bubblePop 0.3s ease both;
+}
+.tf-prompt {
+  color: rgba(255,255,255,0.9);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+.tf-buttons {
+  display: flex;
+  gap: 16px;
+}
+.tf-btn {
+  padding: 13px 28px;
+  border: none;
+  border-radius: 14px;
+  font-size: 1rem;
+  font-weight: 800;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  transition: transform 0.15s, opacity 0.15s;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+}
+.tf-btn:hover  { transform: scale(1.08); }
+.tf-btn:active { transform: scale(0.96); }
+.tf-btn--true  { background: #4ade80; color: #14532d; }
+.tf-btn--false { background: #f87171; color: #7f1d1d; }
+
+/* ── Answer result flash ── */
+.creel-answer-flash {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 2rem;
+  font-weight: 900;
+  padding: 18px 32px;
+  border-radius: 20px;
+  z-index: 30;
+  animation: flashIn 0.3s cubic-bezier(0.34,1.56,0.64,1) both;
+  pointer-events: none;
+}
+.creel-answer-flash--correct { background: rgba(74,222,128,0.95); color: #14532d; }
+.creel-answer-flash--wrong   { background: rgba(248,113,113,0.95); color: #7f1d1d; }
+
+@keyframes flashIn {
+  from { transform: translate(-50%,-50%) scale(0.4); opacity: 0; }
+  to   { transform: translate(-50%,-50%) scale(1);   opacity: 1; }
+}
+
+/* ── Character states: confused / celebrating / wrong ── */
+.char--confused    { animation: charWobble 0.9s ease-in-out infinite; }
+.char--wrong       { animation: charShake  0.5s ease-in-out; }
+.char--celebrating { animation: charJump   0.4s ease-in-out 2; }
+
+@keyframes charWobble {
+  0%, 100% { transform: rotate(0deg) translateY(0); }
+  25%       { transform: rotate(-7deg) translateY(-3px); }
+  75%       { transform: rotate(7deg)  translateY(-3px); }
+}
+@keyframes charShake {
+  0%, 100% { transform: translateX(0); }
+  20%       { transform: translateX(-10px); }
+  40%       { transform: translateX(10px);  }
+  60%       { transform: translateX(-6px);  }
+  80%       { transform: translateX(6px);   }
+}
+
+/* ── Confetti ── */
+.confetti-wrap {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 50;
+  border-radius: 24px;
+}
+.confetti-piece {
+  position: absolute;
+  top: -12px;
+  border-radius: 3px;
+  animation: confettiFall linear forwards;
+}
+@keyframes confettiFall {
+  0%   { transform: translateY(0)     rotate(0deg);       opacity: 1; }
+  80%  { opacity: 1; }
+  100% { transform: translateY(110vh) rotate(var(--rot)); opacity: 0; }
+}
+
+/* ── Upload row (PDF + Image side by side) ── */
+.upload-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+.upload-zone {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  border: 2px dashed #2a2a4a;
+  border-radius: 14px;
+  padding: 16px 10px;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  text-align: center;
+  min-height: 90px;
+  justify-content: center;
+}
+.upload-zone:hover      { border-color: #a855f7; background: rgba(168,85,247,0.05); }
+.upload-zone.has-file   { border-color: #4ade80; background: rgba(74,222,128,0.05); }
+.upload-zone-icon       { font-size: 1.6rem; }
+.upload-zone-label      { font-size: 0.75rem; color: #9ca3af; font-weight: 600; word-break: break-all; }
+.upload-go-btn {
+  margin-top: 4px;
+  padding: 5px 12px;
+  background: linear-gradient(135deg, #a855f7, #e94560);
+  border: none;
+  border-radius: 99px;
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}

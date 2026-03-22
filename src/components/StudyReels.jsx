@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react'
+import Tesseract from 'tesseract.js'
 import { fetchFacts } from '../services/wikipediaService'
 import { extractFactsFromPDF } from '../services/pdfService'
 import CartoonReel from './CartoonReel'
@@ -16,64 +17,72 @@ export default function StudyReels() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [error,       setError]       = useState('')
   const [loadingMsg,  setLoadingMsg]  = useState('')
-  const [pdfProgress, setPdfProgress] = useState(0)
+  const [loadPct,     setLoadPct]     = useState(0)
   const [pdfFile,     setPdfFile]     = useState(null)
+  const [imgFile,     setImgFile]     = useState(null)
+
   const fileInputRef = useRef(null)
+  const imgInputRef  = useRef(null)
   const topicQueue   = useRef([])
   const fetchedTopics = useRef(new Set())
 
-  // ── Search by topic ──────────────────────────────────────────────────────
+  // ── Topic search ──────────────────────────────────────────────────────────
   async function handleSearch(t = topic) {
     if (!t.trim()) return
-    setPhase('loading')
-    setLoadingMsg(`Finding fun facts about "${t.trim()}"...`)
-    setError('')
-    setFacts([])
-    topicQueue.current = []
-    fetchedTopics.current = new Set()
-
+    setPhase('loading'); setLoadingMsg(`Finding fun facts about "${t.trim()}"...`)
+    setError(''); setFacts([]); topicQueue.current = []; fetchedTopics.current = new Set()
     try {
       const { facts: f, relatedTopics } = await fetchFacts(t.trim())
       fetchedTopics.current.add(t.trim())
       topicQueue.current = relatedTopics.filter((r) => !fetchedTopics.current.has(r))
-      setFacts(f)
-      setPhase('playing')
+      setFacts(f); setPhase('playing')
     } catch (err) {
-      setError(err.message || 'Could not find that topic. Try another!')
-      setPhase('error')
+      setError(err.message || 'Could not find that topic. Try another!'); setPhase('error')
     }
   }
 
-  // ── Upload PDF ────────────────────────────────────────────────────────────
-  function handlePdfSelect(file) {
-    if (!file || file.type !== 'application/pdf') return
-    setPdfFile(file)
-    setError('')
+  // ── PDF upload ────────────────────────────────────────────────────────────
+  async function handlePdfConvert(file = pdfFile) {
+    if (!file) return
+    setPhase('loading'); setLoadPct(0); setError(''); setFacts([])
+    topicQueue.current = []; fetchedTopics.current = new Set()
+    try {
+      const { facts: f, title } = await extractFactsFromPDF(file, (pct, msg) => {
+        setLoadPct(pct); setLoadingMsg(msg)
+      })
+      if (!f.length) throw new Error('No readable text found in this PDF.')
+      setTopic(title); setFacts(f); setPhase('playing')
+    } catch (err) {
+      setError(err.message || 'Could not read the PDF. Try another file.'); setPhase('error')
+    }
   }
 
-  async function handlePdfConvert() {
-    if (!pdfFile) return
-    setPhase('pdf-loading')
-    setPdfProgress(0)
-    setError('')
-    setFacts([])
-    topicQueue.current = []
-    fetchedTopics.current = new Set()
-
+  // ── Image upload (OCR) ───────────────────────────────────────────────────
+  async function handleImageConvert(file = imgFile) {
+    if (!file) return
+    setPhase('loading'); setLoadPct(0); setLoadingMsg('Reading your image…'); setError(''); setFacts([])
+    topicQueue.current = []; fetchedTopics.current = new Set()
     try {
-      const { facts: f, title } = await extractFactsFromPDF(pdfFile, (pct, msg) => {
-        setPdfProgress(pct)
-        setLoadingMsg(msg)
+      const { data: { text } } = await Tesseract.recognize(file, 'eng', {
+        logger: (m) => {
+          if (m.status === 'recognizing text') {
+            setLoadPct(Math.round(m.progress * 85))
+            setLoadingMsg(`Recognizing text… ${Math.round(m.progress * 100)}%`)
+          }
+        },
       })
+      const cleaned = text.trim()
+      if (!cleaned || cleaned.length < 40) throw new Error('Could not read enough text from this image.')
 
-      if (!f.length) throw new Error('No readable text found in this PDF.')
+      // Re-use pdfService text parser by importing its internal textToFacts
+      const { extractFactsFromText } = await import('../services/pdfService')
+      const f = extractFactsFromText(cleaned)
+      if (!f.length) throw new Error('Not enough text found in the image.')
 
-      setTopic(title)
-      setFacts(f)
-      setPhase('playing')
+      setTopic(file.name.replace(/\.[^.]+$/, '').slice(0, 60))
+      setFacts(f); setPhase('playing')
     } catch (err) {
-      setError(err.message || 'Could not read the PDF. Try another file.')
-      setPhase('error')
+      setError(err.message || 'Could not read the image. Try a clearer photo.'); setPhase('error')
     }
   }
 
@@ -82,9 +91,7 @@ export default function StudyReels() {
     if (loadingMore) return
     const next = topicQueue.current.shift()
     if (!next || fetchedTopics.current.has(next)) return
-
-    setLoadingMore(true)
-    fetchedTopics.current.add(next)
+    setLoadingMore(true); fetchedTopics.current.add(next)
     try {
       const { facts: more, relatedTopics } = await fetchFacts(next, facts.length)
       topicQueue.current.push(...relatedTopics.filter((r) => !fetchedTopics.current.has(r)))
@@ -94,15 +101,11 @@ export default function StudyReels() {
   }, [loadingMore, facts.length])
 
   function handleReset() {
-    setPhase('search')
-    setTopic('')
-    setFacts([])
-    setError('')
-    setPdfFile(null)
-    setPdfProgress(0)
+    setPhase('search'); setTopic(''); setFacts([]); setError('')
+    setPdfFile(null); setImgFile(null); setLoadPct(0)
   }
 
-  // ── Search / Error phase ──────────────────────────────────────────────────
+  // ── Search / Error UI ────────────────────────────────────────────────────
   if (phase === 'search' || phase === 'error') {
     return (
       <div className="reels-search-wrap">
@@ -110,71 +113,54 @@ export default function StudyReels() {
           <div className="reels-icon">🎬</div>
           <h2 className="reels-title">Study Reels</h2>
           <p className="reels-sub">
-            Search any topic — or upload a PDF to turn it into fun cartoon lessons!
+            Search any topic, upload a PDF, or snap a photo of your notes!
           </p>
 
-          {/* Topic search */}
+          {/* Search */}
           <div className="reels-input-row">
-            <input
-              className="reels-input"
-              type="text"
-              placeholder="e.g. Who is Charles Darwin"
-              value={topic}
-              onChange={(e) => setTopic(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-              autoFocus
-            />
+            <input className="reels-input" type="text" placeholder="e.g. Who is Charles Darwin"
+              value={topic} onChange={(e) => setTopic(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSearch()} autoFocus />
             <button className="reels-start-btn" onClick={() => handleSearch()} disabled={!topic.trim()}>
-              Let's Go! 🚀
+              Go! 🚀
             </button>
           </div>
 
-          {/* Divider */}
-          <div className="reels-divider"><span>or</span></div>
+          <div className="reels-divider"><span>or upload</span></div>
 
-          {/* PDF Upload */}
-          <div
-            className={`pdf-drop-zone ${pdfFile ? 'has-file' : ''}`}
-            onClick={() => fileInputRef.current.click()}
-            onDrop={(e) => { e.preventDefault(); handlePdfSelect(e.dataTransfer.files[0]) }}
-            onDragOver={(e) => e.preventDefault()}
-          >
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="application/pdf"
-              style={{ display: 'none' }}
-              onChange={(e) => handlePdfSelect(e.target.files[0])}
-            />
-            {pdfFile ? (
-              <>
-                <span className="pdf-icon">📄</span>
-                <span className="pdf-filename">{pdfFile.name}</span>
-                <span className="pdf-size">{(pdfFile.size / 1024).toFixed(0)} KB</span>
-              </>
-            ) : (
-              <>
-                <span className="pdf-icon">📂</span>
-                <span className="pdf-drop-text">Drop a PDF here or click to browse</span>
-                <span className="pdf-drop-sub">Textbook, notes, article — anything!</span>
-              </>
-            )}
+          {/* Upload row */}
+          <div className="upload-row">
+            {/* PDF */}
+            <div className={`upload-zone ${pdfFile ? 'has-file' : ''}`}
+              onClick={() => fileInputRef.current.click()}
+              onDrop={(e) => { e.preventDefault(); setPdfFile(e.dataTransfer.files[0]) }}
+              onDragOver={(e) => e.preventDefault()}>
+              <input ref={fileInputRef} type="file" accept="application/pdf" style={{ display:'none' }}
+                onChange={(e) => setPdfFile(e.target.files[0])} />
+              <span className="upload-zone-icon">📄</span>
+              <span className="upload-zone-label">{pdfFile ? pdfFile.name.slice(0,22)+'…' : 'Upload PDF'}</span>
+              {pdfFile && <button className="upload-go-btn" onClick={(e) => { e.stopPropagation(); handlePdfConvert() }}>Convert →</button>}
+            </div>
+
+            {/* Image */}
+            <div className={`upload-zone ${imgFile ? 'has-file' : ''}`}
+              onClick={() => imgInputRef.current.click()}
+              onDrop={(e) => { e.preventDefault(); setImgFile(e.dataTransfer.files[0]) }}
+              onDragOver={(e) => e.preventDefault()}>
+              <input ref={imgInputRef} type="file" accept="image/*" style={{ display:'none' }}
+                onChange={(e) => setImgFile(e.target.files[0])} />
+              <span className="upload-zone-icon">🖼️</span>
+              <span className="upload-zone-label">{imgFile ? imgFile.name.slice(0,22)+'…' : 'Upload Image'}</span>
+              {imgFile && <button className="upload-go-btn" onClick={(e) => { e.stopPropagation(); handleImageConvert() }}>Convert →</button>}
+            </div>
           </div>
-
-          {pdfFile && (
-            <button className="reels-start-btn pdf-convert-btn" onClick={handlePdfConvert}>
-              Convert PDF to Reels 🎬
-            </button>
-          )}
 
           {error && <p className="reels-error">{error}</p>}
 
-          <p className="reels-suggestions-label">Try these topics:</p>
+          <p className="reels-suggestions-label">Try these:</p>
           <div className="reels-suggestions">
             {SUGGESTIONS.map((s) => (
-              <button key={s} className="reels-chip" onClick={() => { setTopic(s); handleSearch(s) }}>
-                {s}
-              </button>
+              <button key={s} className="reels-chip" onClick={() => { setTopic(s); handleSearch(s) }}>{s}</button>
             ))}
           </div>
         </div>
@@ -182,22 +168,22 @@ export default function StudyReels() {
     )
   }
 
-  // ── Loading phase ─────────────────────────────────────────────────────────
-  if (phase === 'loading' || phase === 'pdf-loading') {
+  // ── Loading UI ────────────────────────────────────────────────────────────
+  if (phase === 'loading') {
     return (
       <div className="reels-loading">
-        <div className="reels-loading-spinner">{phase === 'pdf-loading' ? '📄' : '🔍'}</div>
-        <p>{loadingMsg}</p>
-        {phase === 'pdf-loading' && (
+        <div className="reels-loading-spinner">🔍</div>
+        <p>{loadingMsg || 'Loading…'}</p>
+        {loadPct > 0 && (
           <div className="pdf-load-progress">
-            <div className="pdf-load-bar" style={{ width: `${pdfProgress}%` }} />
+            <div className="pdf-load-bar" style={{ width: `${loadPct}%` }} />
           </div>
         )}
       </div>
     )
   }
 
-  // ── Playing phase ─────────────────────────────────────────────────────────
+  // ── Playing UI ────────────────────────────────────────────────────────────
   return (
     <div className="reels-playing-wrap">
       <div className="reels-playing-header">
@@ -206,7 +192,7 @@ export default function StudyReels() {
         <span className="reels-fact-count">{facts.length} facts</span>
       </div>
       <CartoonReel facts={facts} onNearEnd={handleNearEnd} loadingMore={loadingMore} />
-      <p className="reels-hint">Swipe left/right or arrow keys · M = mute</p>
+      <p className="reels-hint">← → arrow keys · M = mute · P = pause</p>
     </div>
   )
 }

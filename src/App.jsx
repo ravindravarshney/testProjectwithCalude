@@ -4,8 +4,8 @@ import NotesConverter from './components/NotesConverter'
 import StudyReels from './components/StudyReels'
 
 const TABS = [
-  { id: 'notes', label: '📝 Notes to Video' },
   { id: 'reels', label: '🎬 Study Reels' },
+  { id: 'notes', label: '📝 Notes to Video' },
 ]
 
 function Banner() {
@@ -18,7 +18,7 @@ function Banner() {
 }
 
 function App() {
-  const [activeTab, setActiveTab] = useState('notes')
+  const [activeTab, setActiveTab] = useState('reels')
 
   return (
     <div>
