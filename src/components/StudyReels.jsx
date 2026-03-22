@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback } from 'react'
 import { fetchFacts } from '../services/wikipediaService'
-import ReelViewer from './ReelViewer'
+import CartoonReel from './CartoonReel'
 
 const SUGGESTIONS = [
   'Who is Charles Darwin', 'How does gravity work', 'What are black holes',
@@ -131,7 +131,7 @@ export default function StudyReels() {
         <span className="reels-topic-label">📚 {topic}</span>
         <span className="reels-fact-count">{facts.length} facts loaded</span>
       </div>
-      <ReelViewer facts={facts} onNearEnd={handleNearEnd} loadingMore={loadingMore} />
+      <CartoonReel facts={facts} onNearEnd={handleNearEnd} loadingMore={loadingMore} />
       <p className="reels-hint">Swipe up/down or use arrow keys • Hover to pause</p>
     </div>
   )
