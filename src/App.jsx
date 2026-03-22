@@ -1,11 +1,23 @@
 import React from 'react'
-import FeedbackButton from './components/FeedbackButton'
+import './App.css'
+import NotesConverter from './components/NotesConverter'
+
+function Banner() {
+  return (
+    <header className="banner">
+      <h1>Welcome to Ravindra Projects</h1>
+      <p>Turn your notes into YouTube videos in seconds</p>
+    </header>
+  )
+}
 
 function App() {
   return (
     <div>
-      <h1>My App</h1>
-      <FeedbackButton />
+      <Banner />
+      <main className="container">
+        <NotesConverter />
+      </main>
     </div>
   )
 }
