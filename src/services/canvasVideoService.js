@@ -1,4 +1,3 @@
-import { fetchTTSAudio } from './ttsService'
 import { playIntroMusic, playOutroMusic, playAmbient } from './musicService'
 
 const W = 1280
@@ -11,17 +10,9 @@ export async function generateVideoBlob(notes, style, onProgress) {
   const slides = buildSlides(notes)
 
   // ── Step 1: Pre-generate TTS for all slides ──────────────────────────────
-  onProgress(2, 'Generating voice narration...')
-  const ttsBuffers = []
-  for (let i = 0; i < slides.length; i++) {
-    try {
-      const buf = await fetchTTSAudio(slides[i])
-      ttsBuffers.push(buf)
-    } catch {
-      ttsBuffers.push(null) // silent fallback for this slide
-    }
-    onProgress(2 + Math.round(((i + 1) / slides.length) * 25), `Voice ${i + 1}/${slides.length}...`)
-  }
+  // TTS not captured in canvas recording — slides are silent video
+  const ttsBuffers = slides.map(() => null)
+  onProgress(10, 'Preparing slides...')
 
   // ── Step 2: Set up AudioContext + canvas ─────────────────────────────────
   const audioCtx = new (window.AudioContext || window.webkitAudioContext)()

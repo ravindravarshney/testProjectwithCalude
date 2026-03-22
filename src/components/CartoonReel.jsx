@@ -2,10 +2,10 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'
 import OwlCharacter from './OwlCharacter'
 import BunnyCharacter from './BunnyCharacter'
 import { factToDialogue } from '../services/dialogueService'
-import { fetchTTSAudio } from '../services/ttsService'
+import { speakLine, stopSpeech } from '../services/ttsService'
 
-const TYPEWRITER_MS = 28
-const POST_LINE_MS  = 900
+const TYPEWRITER_MS = 30
+const POST_LINE_MS  = 700
 
 const BG_THEMES = [
   { from: '#1a1a2e', to: '#16213e', stars: true  },
@@ -16,78 +16,33 @@ const BG_THEMES = [
 ]
 
 export default function CartoonReel({ facts, onNearEnd, loadingMore }) {
-  const [factIdx,      setFactIdx]      = useState(0)
-  const [lineIdx,      setLineIdx]      = useState(0)
-  const [displayed,    setDisplayed]    = useState('')
-  const [dialogue,     setDialogue]     = useState([])
-  const [paused,       setPaused]       = useState(false)
-  const [soundEnabled, setSoundEnabled] = useState(false)  // unlocked by user tap
-  const [soundMuted,   setSoundMuted]   = useState(false)
+  const [factIdx,    setFactIdx]    = useState(0)
+  const [lineIdx,    setLineIdx]    = useState(0)
+  const [displayed,  setDisplayed]  = useState('')
+  const [dialogue,   setDialogue]   = useState([])
+  const [paused,     setPaused]     = useState(false)
+  const [muted,      setMuted]      = useState(false)
 
-  const audioCtxRef = useRef(null)   // AudioContext — created on first user tap
-  const pausedRef   = useRef(false)
-  const cancelRef   = useRef(false)
-  const currentSrc  = useRef(null)   // active AudioBufferSourceNode
+  const pausedRef = useRef(false)
+  const cancelRef = useRef(false)
 
   const fact = facts[factIdx] ?? facts[0]
 
-  // ── Unlock AudioContext on user gesture ────────────────────────────────────
-  function enableSound() {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)()
-    audioCtxRef.current = ctx
-    setSoundEnabled(true)
-  }
-
-  function toggleMute() {
-    setSoundMuted((m) => !m)
-    if (currentSrc.current) {
-      // Stop current audio immediately when muting
-      try { currentSrc.current.stop() } catch (_) {}
-      currentSrc.current = null
-    }
-  }
-
-  // ── Play TTS via unlocked AudioContext ────────────────────────────────────
-  async function playTTS(text, voice) {
-    const ctx = audioCtxRef.current
-    if (!ctx || soundMuted) return
-
-    try {
-      if (ctx.state === 'suspended') await ctx.resume()
-      const buf     = await fetchTTSAudio(text, voice)
-      if (cancelRef.current) return
-
-      const decoded = await ctx.decodeAudioData(buf.slice(0))
-      if (cancelRef.current) return
-
-      const source  = ctx.createBufferSource()
-      source.buffer = decoded
-      source.connect(ctx.destination)
-      currentSrc.current = source
-
-      await new Promise((res) => {
-        source.onended = () => { currentSrc.current = null; res() }
-        source.start()
-      })
-    } catch (err) {
-      // Log for debugging but don't crash
-      console.warn('[TTS]', err?.message ?? err)
-    }
-  }
-
-  // ── Rebuild dialogue when fact changes ────────────────────────────────────
+  // ── Rebuild dialogue on fact change ──────────────────────────────────────
   useEffect(() => {
     if (!fact) return
     cancelRef.current = true
-    try { currentSrc.current?.stop() } catch (_) {}
-    currentSrc.current = null
+    stopSpeech()
     const lines = factToDialogue(fact.text, factIdx)
     setDialogue(lines)
     setLineIdx(0)
     setDisplayed('')
+    // small delay so previous effect cleanup can finish
+    const t = setTimeout(() => { cancelRef.current = false }, 80)
+    return () => clearTimeout(t)
   }, [factIdx])  // eslint-disable-line
 
-  // ── Play current line ─────────────────────────────────────────────────────
+  // ── Play current dialogue line ────────────────────────────────────────────
   useEffect(() => {
     if (!dialogue.length || paused) return
     const line = dialogue[lineIdx]
@@ -103,7 +58,7 @@ export default function CartoonReel({ facts, onNearEnd, loadingMore }) {
       await new Promise((res) => {
         function tick() {
           if (cancelRef.current) return res()
-          if (pausedRef.current) { frame = setTimeout(tick, 50); return }
+          if (pausedRef.current) { frame = setTimeout(tick, 60); return }
           i++
           setDisplayed(line.text.slice(0, i))
           if (i < line.text.length) frame = setTimeout(tick, TYPEWRITER_MS)
@@ -113,9 +68,10 @@ export default function CartoonReel({ facts, onNearEnd, loadingMore }) {
       })
       if (cancelRef.current) return
 
-      // 2. TTS (Brian = Prof Hoot, Amy = Buddy)
-      const voice = line.speaker === 'owl' ? 'Brian' : 'Amy'
-      await playTTS(line.text, voice)
+      // 2. Speak (Web Speech API — no network, no gesture needed)
+      if (!muted) {
+        await speakLine(line.text, line.speaker, cancelRef)
+      }
       if (cancelRef.current) return
 
       // 3. Pause between lines
@@ -123,14 +79,14 @@ export default function CartoonReel({ facts, onNearEnd, loadingMore }) {
       if (cancelRef.current) return
 
       // 4. Advance line or fact
-      const nextLine = lineIdx + 1
-      if (nextLine < dialogue.length) {
-        setLineIdx(nextLine)
+      const next = lineIdx + 1
+      if (next < dialogue.length) {
+        setLineIdx(next)
       } else {
         setFactIdx((prev) => {
-          const next = prev + 1
-          if (facts.length - next <= 3) onNearEnd()
-          return next < facts.length ? next : prev
+          const n = prev + 1
+          if (facts.length - n <= 3) onNearEnd()
+          return n < facts.length ? n : prev
         })
       }
     }
@@ -139,29 +95,32 @@ export default function CartoonReel({ facts, onNearEnd, loadingMore }) {
     return () => {
       cancelRef.current = true
       clearTimeout(frame)
-      try { currentSrc.current?.stop() } catch (_) {}
+      stopSpeech()
     }
-  }, [lineIdx, dialogue, paused, soundMuted])  // eslint-disable-line
+  }, [lineIdx, dialogue, paused, muted])  // eslint-disable-line
 
   useEffect(() => { pausedRef.current = paused }, [paused])
+
+  // Stop speech when muting
+  useEffect(() => { if (muted) stopSpeech() }, [muted])
 
   // ── Navigation ────────────────────────────────────────────────────────────
   const goNext = useCallback(() => {
     cancelRef.current = true
-    try { currentSrc.current?.stop() } catch (_) {}
+    stopSpeech()
     setTimeout(() => {
       setFactIdx((prev) => {
-        const next = prev + 1
-        if (facts.length - next <= 3) onNearEnd()
-        return next < facts.length ? next : prev
+        const n = prev + 1
+        if (facts.length - n <= 3) onNearEnd()
+        return n < facts.length ? n : prev
       })
-    }, 50)
+    }, 80)
   }, [facts.length, onNearEnd])
 
   const goPrev = useCallback(() => {
     cancelRef.current = true
-    try { currentSrc.current?.stop() } catch (_) {}
-    setTimeout(() => setFactIdx((prev) => Math.max(0, prev - 1)), 50)
+    stopSpeech()
+    setTimeout(() => setFactIdx((prev) => Math.max(0, prev - 1)), 80)
   }, [])
 
   useEffect(() => {
@@ -169,6 +128,7 @@ export default function CartoonReel({ facts, onNearEnd, loadingMore }) {
       if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); goNext() }
       if (e.key === 'ArrowLeft')                   { e.preventDefault(); goPrev() }
       if (e.key === 'p' || e.key === 'P')           setPaused((p) => !p)
+      if (e.key === 'm' || e.key === 'M')           setMuted((m) => !m)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -186,9 +146,9 @@ export default function CartoonReel({ facts, onNearEnd, loadingMore }) {
 
   if (!fact || !dialogue.length) return null
 
-  const line      = dialogue[lineIdx] ?? dialogue[0]
-  const bgTheme   = BG_THEMES[factIdx % BG_THEMES.length]
-  const owlState  = line.speaker === 'owl'   ? 'speaking' : 'listening'
+  const line       = dialogue[lineIdx] ?? dialogue[0]
+  const bgTheme    = BG_THEMES[factIdx % BG_THEMES.length]
+  const owlState   = line.speaker === 'owl'   ? 'speaking' : 'listening'
   const bunnyState = line.speaker === 'bunny' ? 'speaking' : 'listening'
 
   return (
@@ -200,26 +160,14 @@ export default function CartoonReel({ facts, onNearEnd, loadingMore }) {
     >
       {bgTheme.stars && <Stars />}
 
-      {/* ── Sound unlock overlay ── */}
-      {!soundEnabled && (
-        <div className="creel-sound-overlay">
-          <button className="creel-sound-unlock-btn" onClick={enableSound}>
-            🔊 Tap to Enable Voice
-          </button>
-          <p className="creel-sound-hint">Prof. Hoot & Buddy will speak!</p>
-        </div>
-      )}
-
-      {/* ── Sound toggle (after enabled) ── */}
-      {soundEnabled && (
-        <button
-          className={`creel-mute-btn ${soundMuted ? 'muted' : ''}`}
-          onClick={toggleMute}
-          title={soundMuted ? 'Unmute' : 'Mute'}
-        >
-          {soundMuted ? '🔇' : '🔊'}
-        </button>
-      )}
+      {/* Mute toggle */}
+      <button
+        className={`creel-mute-btn ${muted ? 'muted' : ''}`}
+        onClick={() => setMuted((m) => !m)}
+        title={muted ? 'Unmute (M)' : 'Mute (M)'}
+      >
+        {muted ? '🔇' : '🔊'}
+      </button>
 
       {/* Topic pill */}
       <div className="creel-topic">
@@ -228,11 +176,11 @@ export default function CartoonReel({ facts, onNearEnd, loadingMore }) {
       </div>
 
       {/* Speech bubble */}
-      <div className={`creel-bubble creel-bubble--${line?.speaker ?? 'owl'}`}>
+      <div className={`creel-bubble creel-bubble--${line.speaker}`}>
         <span className="creel-bubble-text">
           {displayed}<span className="creel-cursor">|</span>
         </span>
-        <div className={`creel-bubble-tail creel-bubble-tail--${line?.speaker ?? 'owl'}`} />
+        <div className={`creel-bubble-tail creel-bubble-tail--${line.speaker}`} />
       </div>
 
       {/* Characters */}
@@ -279,8 +227,7 @@ function Stars() {
   return (
     <svg className="creel-stars" viewBox="0 0 400 200" preserveAspectRatio="xMidYMid slice">
       {stars.map((s) => (
-        <circle
-          key={s.id} cx={`${s.x}%`} cy={`${s.y}%`} r={s.r}
+        <circle key={s.id} cx={`${s.x}%`} cy={`${s.y}%`} r={s.r}
           fill="white" opacity={0.6}
           style={{ animationDelay: `${s.delay}s` }}
           className="star-twinkle"
