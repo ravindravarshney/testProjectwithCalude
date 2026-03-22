@@ -825,6 +825,71 @@ body {
   to   { opacity: 0.9; }
 }
 
+/* ── Sound unlock overlay ── */
+.creel-sound-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(4px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  z-index: 50;
+  border-radius: 24px;
+}
+
+.creel-sound-unlock-btn {
+  padding: 18px 36px;
+  font-size: 1.15rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, #e94560, #a855f7);
+  border: none;
+  border-radius: 99px;
+  color: white;
+  cursor: pointer;
+  animation: pulseShadow 1.8s ease-in-out infinite;
+  letter-spacing: 0.02em;
+}
+
+.creel-sound-unlock-btn:hover {
+  transform: scale(1.05);
+  transition: transform 0.15s;
+}
+
+.creel-sound-hint {
+  font-size: 0.85rem;
+  color: rgba(255,255,255,0.7);
+}
+
+@keyframes pulseShadow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(233,69,96,0.5); }
+  50%       { box-shadow: 0 0 0 14px rgba(233,69,96,0); }
+}
+
+/* ── Mute toggle ── */
+.creel-mute-btn {
+  position: absolute;
+  top: 54px;
+  right: 14px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255,255,255,0.15);
+  font-size: 1.1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+  transition: background 0.2s;
+}
+
+.creel-mute-btn:hover   { background: rgba(255,255,255,0.25); }
+.creel-mute-btn.muted   { background: rgba(233,69,96,0.3); }
+
 /* ── Topic pill ── */
 .creel-topic {
   position: absolute;
