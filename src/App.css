@@ -296,3 +296,106 @@ body {
 .reset-link:hover {
   color: #9ca3af;
 }
+
+/* ── Spell check badge ── */
+.notes-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.spellcheck-badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: rgba(74, 222, 128, 0.1);
+  color: #4ade80;
+  border: 1px solid rgba(74, 222, 128, 0.25);
+  border-radius: 99px;
+  padding: 2px 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* ── Char/word count ── */
+.char-count {
+  margin-top: 6px;
+  font-size: 0.78rem;
+  color: #3d4151;
+  text-align: right;
+}
+
+/* ── Image Upload / OCR ── */
+.image-upload {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 2px dashed #2a2a4a;
+  border-radius: 12px;
+  padding: 22px;
+  margin-bottom: 22px;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  min-height: 100px;
+  text-align: center;
+}
+
+.image-upload:hover,
+.image-upload.loading {
+  border-color: #a855f7;
+  background: rgba(168, 85, 247, 0.04);
+}
+
+.image-upload.done {
+  border-color: #4ade80;
+  background: rgba(74, 222, 128, 0.04);
+}
+
+.image-upload.error {
+  border-color: #f87171;
+  background: rgba(248, 113, 113, 0.04);
+  cursor: default;
+}
+
+.upload-icon {
+  font-size: 1.8rem;
+  line-height: 1;
+}
+
+.upload-text {
+  font-size: 0.92rem;
+  color: #9ca3af;
+  font-weight: 500;
+}
+
+.upload-sub {
+  font-size: 0.78rem;
+  color: #4b5563;
+}
+
+.ocr-progress-track {
+  width: 100%;
+  max-width: 260px;
+  height: 4px;
+  background: #2a2a4a;
+  border-radius: 99px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.ocr-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #a855f7, #e94560);
+  border-radius: 99px;
+  transition: width 0.3s ease;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.spin {
+  display: inline-block;
+  animation: spin 1s linear infinite;
+}
